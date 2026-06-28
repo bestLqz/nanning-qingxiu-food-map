@@ -272,9 +272,11 @@
 
             // ----------------------
             // 4. 加载ArcGIS Online托管的餐饮POI要素服务
+            // 替换为新的服务链接
             // ----------------------
             const featureLayer = new FeatureLayer({
-                url: "https://services8.arcgis.com/HOpNJOCGcy3Gi8RS/arcgis/rest/services/%E9%9D%92%E7%A7%80%E5%8C%BA%E9%A4%90%E9%A5%AEPOI/FeatureServer/0",
+                // 替换后的ArcGIS Online要素服务URL
+                url: "https://services.arcgis.com/TMGBZ-SZKLU-YCEV7/arcgis/rest/services/b566fe52d8d644b4800262e2a07ab1d1/FeatureServer/0",
                 renderer: createRenderer(),
                 popupTemplate: {
                     title: "{name}",
