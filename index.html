@@ -196,12 +196,12 @@
         require([
             "esri/Map",
             "esri/views/MapView",
-            "esri/layers/GeoJSONLayer",
+            "esri/layers/FeatureLayer",
             "esri/widgets/Legend",
             "esri/renderers/SimpleRenderer",
             "esri/symbols/SimpleMarkerSymbol",
             "dojo/domReady!"
-        ], function(Map, MapView, GeoJSONLayer, Legend, SimpleRenderer, SimpleMarkerSymbol) {
+        ], function(Map, MapView, FeatureLayer, Legend, SimpleRenderer, SimpleMarkerSymbol) {
             // ----------------------
             // 1. 创建地图对象
             // 使用ArcGIS官方矢量街道底图
@@ -251,18 +251,18 @@
                     }),
                     visualVariables: [{
                         type: "color",
-                        field: "category",  // 使用category字段进行分类
+                        field: "search_keyword",  // 匹配FeatureLayer的字段名
                         legendOptions: {
                             title: "餐饮类型"
                         },
                         stops: [
                             { value: "螺蛳粉", color: "#DC143C", label: "螺蛳粉" },
                             { value: "奶茶", color: "#FF69B4", label: "奶茶甜品" },
-                            { value: "甜品", color: "#FF69B4", label: "奶茶甜品" },
                             { value: "咖啡甜品", color: "#FF69B4", label: "奶茶甜品" },
-                            { value: "饮品", color: "#FF69B4", label: "奶茶甜品" },
                             { value: "火锅", color: "#FF8C00", label: "火锅" },
-                            { value: "烧烤", color: "#20B2AA", label: "烧烤" }
+                            { value: "烧烤", color: "#20B2AA", label: "烧烤" },
+                            { value: "餐饮", color: "#1E90FF", label: "其他餐饮" },
+                            { value: "小吃快餐", color: "#1E90FF", label: "其他餐饮" }
                         ]
                     }]
                 });
@@ -271,14 +271,10 @@
             };
 
             // ----------------------
-            // 4. 加载餐饮POI数据
-            // 方案A：本地GeoJSON加载（默认使用）
-            // 方案B：ArcGIS Online托管图层（需替换URL）
+            // 4. 加载ArcGIS Online托管的餐饮POI要素服务
             // ----------------------
-            
-            // 方案A：本地GeoJSON加载
-            const geojsonLayer = new GeoJSONLayer({
-                url: "./青秀区餐饮POI.geojson",  // 本地GeoJSON文件路径
+            const featureLayer = new FeatureLayer({
+                url: "https://services8.arcgis.com/HOpNJOCGcy3Gi8RS/arcgis/rest/services/%E9%9D%92%E7%A7%80%E5%8C%BA%E9%A4%90%E9%A5%AEPOI/FeatureServer/0",
                 renderer: createRenderer(),
                 popupTemplate: {
                     title: "{name}",
@@ -287,42 +283,17 @@
                             type: "fields",
                             fieldInfos: [
                                 { fieldName: "address", label: "详细地址", visible: true },
-                                { fieldName: "category", label: "品类", visible: true },
-                                { fieldName: "type", label: "类型", visible: true },
-                                { fieldName: "telephone", label: "联系电话", visible: true }
+                                { fieldName: "category_all", label: "原始分类", visible: true },
+                                { fieldName: "search_keyword", label: "检索品类", visible: true },
+                                { fieldName: "tel", label: "联系电话", visible: true }
                             ]
                         }
                     ]
                 }
             });
 
-            // 方案B：ArcGIS Online托管图层（取消注释并替换URL使用）
-            /*
-            require(["esri/layers/FeatureLayer"], function(FeatureLayer) {
-                const featureLayer = new FeatureLayer({
-                    url: "https://services.arcgis.com/xxx/arcgis/rest/services/xxx/FeatureServer/0",
-                    renderer: createRenderer(),
-                    popupTemplate: {
-                        title: "{name}",
-                        content: [
-                            {
-                                type: "fields",
-                                fieldInfos: [
-                                    { fieldName: "address", label: "详细地址", visible: true },
-                                    { fieldName: "category", label: "品类", visible: true },
-                                    { fieldName: "type", label: "类型", visible: true },
-                                    { fieldName: "telephone", label: "联系电话", visible: true }
-                                ]
-                            }
-                        ]
-                    }
-                });
-                map.add(featureLayer);
-            });
-            */
-
             // 将图层添加到地图
-            map.add(geojsonLayer);
+            map.add(featureLayer);
 
             // ----------------------
             // 5. 筛选功能实现
@@ -393,7 +364,7 @@
                     selectedCategories.push("螺蛳粉");
                 }
                 if (document.getElementById("milkTea").checked) {
-                    selectedCategories.push("奶茶", "甜品", "咖啡甜品", "饮品");
+                    selectedCategories.push("奶茶", "咖啡甜品");
                 }
                 if (document.getElementById("hotpot").checked) {
                     selectedCategories.push("火锅");
@@ -402,7 +373,7 @@
                     selectedCategories.push("烧烤");
                 }
                 if (document.getElementById("other").checked) {
-                    // 其他类别通过排除法处理
+                    selectedCategories.push("餐饮", "小吃快餐");
                 }
 
                 // 构建SQL查询表达式
@@ -411,21 +382,14 @@
                 if (selectedCategories.length === 0) {
                     // 全部取消选中，隐藏所有要素
                     sqlExpression = "1=0";
-                } else if (selectedCategories.length > 0 && !document.getElementById("other").checked) {
-                    // 只显示选中的特定类别
-                    const categoryStr = selectedCategories.map(c => `'${c}'`).join(", ");
-                    sqlExpression = `category IN (${categoryStr})`;
-                } else if (document.getElementById("other").checked && selectedCategories.length === 0) {
-                    // 只显示其他类别
-                    const excludeStr = ["螺蛳粉", "奶茶", "甜品", "咖啡甜品", "饮品", "火锅", "烧烤"].map(c => `'${c}'`).join(", ");
-                    sqlExpression = `category NOT IN (${excludeStr})`;
                 } else {
-                    // 显示所有
-                    sqlExpression = "1=1";
+                    // 显示选中的类别
+                    const categoryStr = selectedCategories.map(c => `'${c}'`).join(", ");
+                    sqlExpression = `search_keyword IN (${categoryStr})`;
                 }
 
-                // 应用筛选
-                geojsonLayer.definitionExpression = sqlExpression;
+                // 应用筛选到FeatureLayer
+                featureLayer.definitionExpression = sqlExpression;
             }
 
             // ----------------------
@@ -434,7 +398,7 @@
             view.ui.add(new Legend({
                 view: view,
                 layerInfos: [{
-                    layer: geojsonLayer,
+                    layer: featureLayer,
                     title: "餐饮类型"
                 }]
             }), "bottom-right");
